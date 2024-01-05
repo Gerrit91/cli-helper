@@ -63,8 +63,6 @@ func decodeSecret(key string) error {
 		return fmt.Errorf("secret does not contain data beneath key %q", key)
 	}
 
-	fmt.Println(string(encoded))
-
 	value, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
 		return err
