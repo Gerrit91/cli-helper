@@ -63,7 +63,9 @@ func decodeSecret(key string) error {
 		return fmt.Errorf("secret does not contain data beneath key %q", key)
 	}
 
-	value, err := base64.RawStdEncoding.DecodeString(encoded)
+	fmt.Println(string(encoded))
+
+	value, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
 		return err
 	}
@@ -76,7 +78,7 @@ func decodeSecret(key string) error {
 func decodeJWT() error {
 	var (
 		decodeJSON = func(raw string) (string, error) {
-			decoded, err := base64.RawStdEncoding.DecodeString(raw)
+			decoded, err := base64.StdEncoding.DecodeString(raw)
 			if err != nil {
 				return "", err
 			}
