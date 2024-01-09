@@ -10,6 +10,8 @@ import (
 
 	"github.com/urfave/cli/v2"
 	"sigs.k8s.io/yaml"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func main() {
@@ -76,7 +78,7 @@ func decodeSecret(key string) error {
 func decodeJWT() error {
 	var (
 		decodeJSON = func(raw string) (string, error) {
-			decoded, err := base64.StdEncoding.DecodeString(raw)
+			decoded, err := base64.RawStdEncoding.DecodeString(raw)
 			if err != nil {
 				return "", err
 			}
@@ -124,6 +126,20 @@ func decodeJWT() error {
 		case 2:
 			// what to do with signature?
 		}
+	}
+
+	var (
+		parser = jwt.NewParser()
+		claims = jwt.MapClaims{}
+	)
+	token, _, err := parser.ParseUnverified(string(input), claims)
+	if err != nil {
+		return err
+	}
+
+	exp, err := token.Claims.GetExpirationTime()
+	if err == nil {
+		fmt.Println("Expires at: " + exp.String())
 	}
 
 	return nil
