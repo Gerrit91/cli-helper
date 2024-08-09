@@ -1,17 +1,14 @@
 package main
 
 import (
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"io"
 	"os"
-	"strings"
+
+	"github.com/Gerrit91/cli-helper/pkg/jwt"
+	"github.com/Gerrit91/cli-helper/pkg/kubernetes"
+	"github.com/Gerrit91/cli-helper/pkg/weather"
 
 	"github.com/urfave/cli/v2"
-	"sigs.k8s.io/yaml"
-
-	"github.com/golang-jwt/jwt/v5"
 )
 
 func main() {
@@ -21,16 +18,47 @@ func main() {
 				Name: "decode-secret",
 				Action: func(c *cli.Context) error {
 					if !c.Args().Present() {
-						return fmt.Errorf("no key arg provided")
+						return kubernetes.DecodeSecret(c)
 					}
 
-					return decodeSecret(c.Args().First())
+					return kubernetes.DecodeSecretKey(c.Args().First())
+				},
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:        "entire-secret",
+						DefaultText: "prints out the entire secret instead of the data section only",
+						Value:       false,
+					},
 				},
 			},
 			{
 				Name: "decode-jwt",
 				Action: func(c *cli.Context) error {
-					return decodeJWT()
+					return jwt.DecodeJWT()
+				},
+			},
+			{
+				Name: "weather",
+				Action: func(c *cli.Context) error {
+					weather := weather.New("", c.String("location"), c.String("api-token"))
+					return weather.Get()
+				},
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:        "api-token",
+						DefaultText: "open weather api token",
+						Required:    true,
+						EnvVars:     []string{"OPEN_WEATHER_API_TOKEN"},
+					},
+					&cli.StringFlag{
+						Name:        "location",
+						DefaultText: "name of the location to query",
+						Required:    true,
+					},
+					&cli.StringFlag{
+						Name:        "cache-path",
+						DefaultText: "the path where to store the cached weather data",
+					},
 				},
 			},
 		},
@@ -40,107 +68,4 @@ func main() {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
-
-}
-
-func decodeSecret(key string) error {
-	raw, err := io.ReadAll(os.Stdin)
-	if err != nil {
-		return err
-	}
-
-	type secret struct {
-		Data map[string]string `json:"data"`
-	}
-
-	s := &secret{}
-
-	err = yaml.Unmarshal(raw, s)
-	if err != nil {
-		return err
-	}
-
-	encoded, ok := s.Data[key]
-	if !ok {
-		return fmt.Errorf("secret does not contain data beneath key %q", key)
-	}
-
-	value, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(string(value))
-
-	return nil
-}
-
-func decodeJWT() error {
-	var (
-		decodeJSON = func(raw string) (string, error) {
-			decoded, err := base64.RawStdEncoding.DecodeString(raw)
-			if err != nil {
-				return "", err
-			}
-
-			parsed := map[string]any{}
-
-			err = json.Unmarshal(decoded, &parsed)
-			if err != nil {
-				return "", err
-			}
-
-			formatted, err := json.MarshalIndent(parsed, "", "    ")
-			if err != nil {
-				return "", err
-			}
-
-			return string(formatted), nil
-		}
-	)
-
-	input, err := io.ReadAll(os.Stdin)
-	if err != nil {
-		return err
-	}
-
-	parts := strings.Split(string(input), ".")
-
-	for i := range parts {
-		switch i {
-		case 0:
-			data, err := decodeJSON(parts[i])
-			if err != nil {
-				return err
-			}
-			fmt.Println("Header (Algorithm & Token Type):")
-
-			fmt.Println(data)
-		case 1:
-			data, err := decodeJSON(parts[i])
-			if err != nil {
-				return err
-			}
-			fmt.Println("Payload:")
-			fmt.Println(data)
-		case 2:
-			// what to do with signature?
-		}
-	}
-
-	var (
-		parser = jwt.NewParser()
-		claims = jwt.MapClaims{}
-	)
-	token, _, err := parser.ParseUnverified(string(input), claims)
-	if err != nil {
-		return err
-	}
-
-	exp, err := token.Claims.GetExpirationTime()
-	if err == nil {
-		fmt.Println("Expires at: " + exp.String())
-	}
-
-	return nil
 }
