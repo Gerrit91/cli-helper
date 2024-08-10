@@ -13,6 +13,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/Gerrit91/cli-helper/pkg/waybar"
 )
 
 type (
@@ -53,14 +55,6 @@ type (
 		CachedLocation string       `json:"cached_location"`
 		CacheExpiresAt *time.Time   `json:"cache_expires_at"`
 	}
-
-	output struct {
-		Text       string `json:"text"`
-		Alt        string `json:"alt"`
-		Tooltip    string `json:"tooltip"`
-		Class      string `json:"class"`
-		Percentage string `json:"percentage"`
-	}
 )
 
 func New(cachePath, location, tokenPath string) (*cachedWeather, error) {
@@ -81,25 +75,30 @@ func New(cachePath, location, tokenPath string) (*cachedWeather, error) {
 	}, nil
 }
 
-func (cw *cachedWeather) update() error {
-	var c cache
+func (cw *cachedWeather) update(force bool) error {
+	var (
+		c   cache
+		err error
+	)
 
-	raw, err := os.ReadFile(cw.cachePath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			// ok
-		} else {
-			return err
-		}
-	} else {
-		err = json.Unmarshal(raw, &c)
+	if !force {
+		raw, err := os.ReadFile(cw.cachePath)
 		if err != nil {
-			return err
-		}
+			if errors.Is(err, os.ErrNotExist) {
+				// ok
+			} else {
+				return err
+			}
+		} else {
+			err = json.Unmarshal(raw, &c)
+			if err != nil {
+				return err
+			}
 
-		if c.CachedLocation == cw.location && c.CacheExpiresAt != nil && time.Until(*c.CacheExpiresAt) > 0 {
-			cw.c = c
-			return nil
+			if c.CachedLocation == cw.location && c.CacheExpiresAt != nil && time.Until(*c.CacheExpiresAt) > 0 {
+				cw.c = c
+				return nil
+			}
 		}
 	}
 
@@ -121,7 +120,7 @@ func (cw *cachedWeather) update() error {
 	c.CacheExpiresAt = &expiresAt
 	c.CachedLocation = cw.location
 
-	raw, err = json.Marshal(c)
+	raw, err := json.Marshal(c)
 	if err != nil {
 		return err
 	}
@@ -136,11 +135,11 @@ func (cw *cachedWeather) update() error {
 	return nil
 }
 
-func (cw *cachedWeather) PrintForWaybar() error {
-	var o output
-	err := cw.update()
+func (cw *cachedWeather) PrintForWaybar(force bool) error {
+	var o waybar.Output
+	err := cw.update(force)
 	if err != nil {
-		o = output{
+		o = waybar.Output{
 			Text:       "--°C",
 			Alt:        "",
 			Tooltip:    err.Error(),
@@ -148,7 +147,7 @@ func (cw *cachedWeather) PrintForWaybar() error {
 			Percentage: "",
 		}
 	} else {
-		o = output{
+		o = waybar.Output{
 			Text:       fmt.Sprintf("%.2f°C", cw.c.Weather.Main.Temp),
 			Alt:        icon(cw.c.Weather.Weather[0].ID, cw.c.Weather.isNight()),
 			Tooltip:    fmt.Sprintf("%s, %s, %s", cw.c.Location.Name, cw.c.Location.State, cw.c.Weather.Weather[0].Description),
@@ -296,9 +295,9 @@ func icon(code int, night bool) string {
 			return ""
 		case code == 800:
 			return ""
-		case code == 801 && night:
+		case code >= 801 && code < 803 && night:
 			return ""
-		case code == 801:
+		case code >= 801 && code < 803:
 			return ""
 		default:
 			return ""

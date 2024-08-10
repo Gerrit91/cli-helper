@@ -6,6 +6,7 @@ import (
 
 	"github.com/Gerrit91/cli-helper/pkg/jwt"
 	"github.com/Gerrit91/cli-helper/pkg/kubernetes"
+	"github.com/Gerrit91/cli-helper/pkg/updates"
 	"github.com/Gerrit91/cli-helper/pkg/weather"
 
 	"github.com/urfave/cli/v2"
@@ -45,7 +46,7 @@ func main() {
 						return err
 					}
 
-					return w.PrintForWaybar()
+					return w.PrintForWaybar(c.Bool("force"))
 				},
 				Flags: []cli.Flag{
 					&cli.StringFlag{
@@ -63,6 +64,17 @@ func main() {
 						Name:        "cache-path",
 						DefaultText: "the path where to store the cached weather data",
 					},
+					&cli.BoolFlag{
+						Name:        "force",
+						DefaultText: "force an update of the cache",
+						Value:       false,
+					},
+				},
+			},
+			{
+				Name: "package-updates",
+				Action: func(c *cli.Context) error {
+					return updates.PrintForWaybar()
 				},
 			},
 		},
