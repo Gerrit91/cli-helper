@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -19,6 +20,8 @@ type (
 		cachePath string
 		token     string
 		location  string
+
+		c cache
 	}
 
 	geoResp struct {
@@ -60,20 +63,25 @@ type (
 	}
 )
 
-func New(cachePath, location, token string) *cachedWeather {
+func New(cachePath, location, tokenPath string) (*cachedWeather, error) {
 	if cachePath == "" {
 		_, filename, _, _ := runtime.Caller(0)
 		cachePath = path.Join(path.Dir(filename), "weather-cache.json")
 	}
 
+	token, err := os.ReadFile(tokenPath)
+	if err != nil {
+		return nil, err
+	}
+
 	return &cachedWeather{
 		cachePath: cachePath,
-		token:     token,
+		token:     strings.TrimSpace(string(token)),
 		location:  location,
-	}
+	}, nil
 }
 
-func (cw *cachedWeather) Get() error {
+func (cw *cachedWeather) update() error {
 	var c cache
 
 	raw, err := os.ReadFile(cw.cachePath)
@@ -90,7 +98,8 @@ func (cw *cachedWeather) Get() error {
 		}
 
 		if c.CachedLocation == cw.location && c.CacheExpiresAt != nil && time.Until(*c.CacheExpiresAt) > 0 {
-			return cw.print(c)
+			cw.c = c
+			return nil
 		}
 	}
 
@@ -122,16 +131,30 @@ func (cw *cachedWeather) Get() error {
 		return err
 	}
 
-	return cw.print(c)
+	cw.c = c
+
+	return nil
 }
 
-func (cw *cachedWeather) print(c cache) error {
-	o := output{
-		Text:       fmt.Sprintf("%.2f°C", c.Weather.Main.Temp),
-		Alt:        icon(c.Weather.Weather[0].ID, c.Weather.isNight()),
-		Tooltip:    fmt.Sprintf("%s, %s, %s", c.Location.Name, c.Location.State, c.Weather.Weather[0].Description),
-		Class:      "",
-		Percentage: "",
+func (cw *cachedWeather) PrintForWaybar() error {
+	var o output
+	err := cw.update()
+	if err != nil {
+		o = output{
+			Text:       "--°C",
+			Alt:        "",
+			Tooltip:    err.Error(),
+			Class:      "",
+			Percentage: "",
+		}
+	} else {
+		o = output{
+			Text:       fmt.Sprintf("%.2f°C", cw.c.Weather.Main.Temp),
+			Alt:        icon(cw.c.Weather.Weather[0].ID, cw.c.Weather.isNight()),
+			Tooltip:    fmt.Sprintf("%s, %s, %s", cw.c.Location.Name, cw.c.Location.State, cw.c.Weather.Weather[0].Description),
+			Class:      "",
+			Percentage: "",
+		}
 	}
 
 	raw, err := json.Marshal(o)
@@ -277,10 +300,6 @@ func icon(code int, night bool) string {
 			return ""
 		case code == 801:
 			return ""
-		case code == 802:
-			return ""
-		case code == 802:
-			return ""
 		default:
 			return ""
 		}

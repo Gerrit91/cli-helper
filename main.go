@@ -40,12 +40,16 @@ func main() {
 			{
 				Name: "weather",
 				Action: func(c *cli.Context) error {
-					weather := weather.New("", c.String("location"), c.String("api-token"))
-					return weather.Get()
+					w, err := weather.New(c.String("cache-path"), c.String("location"), c.String("api-token-path"))
+					if err != nil {
+						return err
+					}
+
+					return w.PrintForWaybar()
 				},
 				Flags: []cli.Flag{
 					&cli.StringFlag{
-						Name:        "api-token",
+						Name:        "api-token-path",
 						DefaultText: "open weather api token",
 						Required:    true,
 						EnvVars:     []string{"OPEN_WEATHER_API_TOKEN"},
