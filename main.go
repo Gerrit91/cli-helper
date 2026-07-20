@@ -4,10 +4,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/Gerrit91/cli-helper/pkg/battery"
 	"github.com/Gerrit91/cli-helper/pkg/jwt"
 	"github.com/Gerrit91/cli-helper/pkg/kubernetes"
-	"github.com/Gerrit91/cli-helper/pkg/updates"
-	"github.com/Gerrit91/cli-helper/pkg/weather"
 
 	"github.com/urfave/cli/v2"
 )
@@ -39,42 +38,18 @@ func main() {
 				},
 			},
 			{
-				Name: "weather",
+				Name:        "battery-daemon",
+				Description: "runs a daemon that listens on dbus for upower events and sends notifications and sounds",
 				Action: func(c *cli.Context) error {
-					w, err := weather.New(c.String("cache-path"), c.String("location"), c.String("api-token-path"))
-					if err != nil {
-						return err
-					}
-
-					return w.PrintForWaybar(c.Bool("force"))
+					return battery.New(c.Bool("daemonize")).Run(c.Context)
 				},
 				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:        "api-token-path",
-						DefaultText: "open weather api token",
-						Required:    true,
-						EnvVars:     []string{"OPEN_WEATHER_API_TOKEN"},
-					},
-					&cli.StringFlag{
-						Name:        "location",
-						DefaultText: "name of the location to query",
-						Required:    true,
-					},
-					&cli.StringFlag{
-						Name:        "cache-path",
-						DefaultText: "the path where to store the cached weather data",
-					},
 					&cli.BoolFlag{
-						Name:        "force",
-						DefaultText: "force an update of the cache",
+						Name:        "daemonize",
+						Aliases:     []string{"d"},
+						DefaultText: "runs a background daemon that watches for upower dbus events",
 						Value:       false,
 					},
-				},
-			},
-			{
-				Name: "package-updates",
-				Action: func(c *cli.Context) error {
-					return updates.PrintForWaybar()
 				},
 			},
 		},
