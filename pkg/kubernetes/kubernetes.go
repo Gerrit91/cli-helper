@@ -7,19 +7,26 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 
-	"github.com/urfave/cli/v3"
 	"sigs.k8s.io/yaml"
 )
 
-func DecodeSecret(ctx context.Context, c *cli.Command) error {
+func DecodeSecret(ctx context.Context, context, namespace, name string, entireSecret bool) error {
 	var raw []byte
 
-	if secretName := c.StringArg("secret-name"); secretName != "" {
+	if name != "" {
 		var (
 			err  error
-			args = []string{"get", "secret", secretName, "-o", "yaml"}
+			args = []string{"get", "secret", name, "-o", "yaml"}
 		)
+
+		if context != "" {
+			args = append(args, "--context", context)
+		}
+		if namespace != "" {
+			args = append(args, "-n", namespace)
+		}
 
 		cmd := exec.CommandContext(ctx, "kubectl", args...)
 		cmd.Env = os.Environ()
@@ -71,7 +78,7 @@ func DecodeSecret(ctx context.Context, c *cli.Command) error {
 
 	var output []byte
 
-	if c.Bool("entire-secret") {
+	if entireSecret {
 		output, err = yaml.Marshal(s)
 		if err != nil {
 			return err
@@ -84,6 +91,34 @@ func DecodeSecret(ctx context.Context, c *cli.Command) error {
 	}
 
 	fmt.Println(string(output))
+
+	return nil
+}
+
+func AnnotateResource(ctx context.Context, context, resource, namespace, name, annotation string) error {
+	var (
+		err  error
+		args = []string{"annotate", resource, name}
+	)
+
+	if context != "" {
+		args = append(args, "--context", context)
+	}
+	if namespace != "" {
+		args = append(args, "-n", namespace)
+	}
+
+	args = append(args, annotation)
+
+	cmd := exec.CommandContext(ctx, "kubectl", args...)
+	cmd.Env = os.Environ()
+
+	raw, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error annotating resource (%w): %s", err, string(raw))
+	}
+
+	fmt.Println(strings.TrimSpace(string(raw)))
 
 	return nil
 }
