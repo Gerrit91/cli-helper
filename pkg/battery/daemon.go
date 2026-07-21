@@ -189,13 +189,15 @@ func (d *daemon) evaluateAndEmit(percentage int, isCharging bool) {
 		d.hasEmittedDischarging = false
 	} else {
 		if d.hasEmittedCharging && !d.hasEmittedDischarging {
-			d.emitNotification(&notification{
-				message: fmt.Sprintf("Stopped charging (%d%%)", percentage),
-				urgency: urgencyLow,
-				icon:    iconFull,
-				timeout: new(10 * time.Second),
-			})
-			d.emitSound()
+			if percentage != 100 {
+				d.emitNotification(&notification{
+					message: fmt.Sprintf("Stopped charging (%d%%)", percentage),
+					urgency: urgencyLow,
+					icon:    iconFull,
+					timeout: new(10 * time.Second),
+				})
+				d.emitSound()
+			}
 			d.hasEmittedDischarging = true
 		}
 

@@ -6,6 +6,7 @@ require (
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/urfave/cli/v2 v2.27.7
+	github.com/urfave/cli/v3 v3.10.1
 	sigs.k8s.io/yaml v1.6.0
 )
 

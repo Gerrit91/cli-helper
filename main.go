@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -8,20 +9,22 @@ import (
 	"github.com/Gerrit91/cli-helper/pkg/jwt"
 	"github.com/Gerrit91/cli-helper/pkg/kubernetes"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 func main() {
-	app := &cli.App{
+	cmd := &cli.Command{
+		EnableShellCompletion: true,
 		Commands: []*cli.Command{
 			{
 				Name: "decode-secret",
-				Action: func(c *cli.Context) error {
-					if !c.Args().Present() {
-						return kubernetes.DecodeSecret(c)
-					}
-
-					return kubernetes.DecodeSecretKey(c.Args().First())
+				Action: func(ctx context.Context, c *cli.Command) error {
+					return kubernetes.DecodeSecret(ctx, c)
+				},
+				Arguments: []cli.Argument{
+					&cli.StringArg{
+						Name: "secret-name",
+					},
 				},
 				Flags: []cli.Flag{
 					&cli.BoolFlag{
@@ -33,15 +36,15 @@ func main() {
 			},
 			{
 				Name: "decode-jwt",
-				Action: func(c *cli.Context) error {
+				Action: func(ctx context.Context, c *cli.Command) error {
 					return jwt.DecodeJWT()
 				},
 			},
 			{
 				Name:        "battery-daemon",
 				Description: "runs a daemon that listens on dbus for upower events and sends notifications and sounds",
-				Action: func(c *cli.Context) error {
-					return battery.New(c.Bool("daemonize")).Run(c.Context)
+				Action: func(ctx context.Context, c *cli.Command) error {
+					return battery.New(c.Bool("daemonize")).Run(ctx)
 				},
 				Flags: []cli.Flag{
 					&cli.BoolFlag{
@@ -55,7 +58,7 @@ func main() {
 		},
 	}
 
-	if err := app.Run(os.Args); err != nil {
+	if err := cmd.Run(context.Background(), os.Args); err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
