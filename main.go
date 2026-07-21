@@ -140,10 +140,10 @@ func must(err error) {
 
 func secretNameCompletion(c *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	args := []string{"get", "secrets", "--no-headers", "-o", "custom-columns=:metadata.name"}
-	if ns := viper.GetString("namespace"); ns != "" {
+	if ns, _ := c.Flags().GetString("namespace"); ns != "" {
 		args = append(args, "-n", ns)
 	}
-	if context := viper.GetString("context"); context != "" {
+	if context, _ := c.Flags().GetString("context"); context != "" {
 		args = append(args, "--context", context)
 	}
 
@@ -160,7 +160,7 @@ func secretNameCompletion(c *cobra.Command, _ []string, toComplete string) ([]st
 
 func namespaceCompletion(c *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	args := []string{"get", "ns", "--no-headers", "-o", "custom-columns=:metadata.name"}
-	if context := viper.GetString("context"); context != "" {
+	if context, _ := c.Flags().GetString("context"); context != "" {
 		args = append(args, "--context", context)
 	}
 
@@ -191,7 +191,7 @@ func resourceCompletion(c *cobra.Command, cArgs []string, toComplete string) ([]
 	switch len(cArgs) {
 	case 0:
 		args := []string{"api-resources", "-o", "json"}
-		if context := viper.GetString("context"); context != "" {
+		if context, _ := c.Flags().GetString("context"); context != "" {
 			args = append(args, "--context", context)
 		}
 
@@ -226,10 +226,10 @@ func resourceCompletion(c *cobra.Command, cArgs []string, toComplete string) ([]
 		return res, cobra.ShellCompDirectiveNoFileComp
 	case 1:
 		args := []string{"get", cArgs[0], "--no-headers", "-o", "custom-columns=:metadata.name"}
-		if ns := viper.GetString("namespace"); ns != "" {
+		if ns, _ := c.Flags().GetString("namespace"); ns != "" {
 			args = append(args, "-n", ns)
 		}
-		if context := viper.GetString("context"); context != "" {
+		if context, _ := c.Flags().GetString("context"); context != "" {
 			args = append(args, "--context", context)
 		}
 
