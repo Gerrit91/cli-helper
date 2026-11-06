@@ -11,7 +11,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func DecodeJWT() error {
+func DecodeJWT(t string) error {
 	var (
 		decodeJSON = func(raw string) (string, error) {
 			decoded, err := base64.RawStdEncoding.DecodeString(raw)
@@ -35,12 +35,16 @@ func DecodeJWT() error {
 		}
 	)
 
-	input, err := io.ReadAll(os.Stdin)
-	if err != nil {
-		return err
+	if t == "" {
+		input, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return err
+		}
+
+		t = string(input)
 	}
 
-	parts := strings.Split(string(input), ".")
+	parts := strings.Split(t, ".")
 
 	for i := range parts {
 		switch i {
@@ -68,7 +72,8 @@ func DecodeJWT() error {
 		parser = jwt.NewParser()
 		claims = jwt.MapClaims{}
 	)
-	token, _, err := parser.ParseUnverified(string(input), claims)
+
+	token, _, err := parser.ParseUnverified(t, claims)
 	if err != nil {
 		return err
 	}

@@ -95,7 +95,7 @@ func DecodeSecret(ctx context.Context, context, namespace, name string, entireSe
 	return nil
 }
 
-func AnnotateResource(ctx context.Context, context, resource, namespace, name, annotation string) error {
+func AnnotateResource(ctx context.Context, context, resource, namespace, name string, annotations ...string) error {
 	var (
 		err  error
 		args = []string{"annotate", resource, name}
@@ -108,7 +108,7 @@ func AnnotateResource(ctx context.Context, context, resource, namespace, name, a
 		args = append(args, "-n", namespace)
 	}
 
-	args = append(args, annotation)
+	args = append(args, annotations...)
 
 	cmd := exec.CommandContext(ctx, "kubectl", args...)
 	cmd.Env = os.Environ()

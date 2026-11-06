@@ -36,7 +36,8 @@ func main() {
 					secretName = args[0]
 				}
 
-				return kubernetes.DecodeSecret(cmd.Context(),
+				return kubernetes.DecodeSecret(
+					cmd.Context(),
 					viper.GetString("context"),
 					viper.GetString("namespace"),
 					secretName,
@@ -49,7 +50,12 @@ func main() {
 			Use:   "decode-jwt",
 			Short: "decodes a jwt",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				return jwt.DecodeJWT()
+				var t string
+				if len(args) == 1 {
+					t = args[0]
+				}
+
+				return jwt.DecodeJWT(t)
 			},
 		}
 
@@ -99,11 +105,43 @@ func main() {
 				)
 			},
 		}
+		gardenerNoGrace = &cobra.Command{
+			Use:               "no-grace",
+			Short:             "adds the gardener annotations to a shoot in order to ignore grace periods",
+			ValidArgsFunction: shootNameCompletion,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				if len(args) != 2 {
+					return errors.New("arguments must be <name>")
+				}
+
+				return kubernetes.AnnotateResource(
+					cmd.Context(),
+					viper.GetString("context"),
+					args[0],
+					viper.GetString("namespace"),
+					args[1],
+					"shoot.gardener.cloud/cleanup-webhooks-finalize-grace-period-seconds=0",
+					"shoot.gardener.cloud/cleanup-extended-apis-finalize-grace-period-seconds=0",
+					"shoot.gardener.cloud/cleanup-kubernetes-resources-finalize-grace-period-seconds=0",
+				)
+			},
+		}
+		gardenerVirtualGarden = &cobra.Command{
+			Use:               "virtual-garden-kubeconfig",
+			Short:             "merged the virtual garden kubeconfig into the current kubeconfig in a context called garden",
+			ValidArgsFunction: shootNameCompletion,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return kubernetes.VirtualGardenKubeconfig(
+					cmd.Context(),
+				)
+			},
+		}
 	)
 
+	decodeSecretCmd.Flags().String("context", "", "the kubeconfig context")
 	decodeSecretCmd.Flags().StringP("namespace", "n", "", "the namespace of the secret")
 	decodeSecretCmd.Flags().Bool("entire-secret", false, "prints out the entire secret instead of the data section only")
-
+	must(decodeSecretCmd.RegisterFlagCompletionFunc("context", contextCompletion))
 	must(decodeSecretCmd.RegisterFlagCompletionFunc("namespace", namespaceCompletion))
 
 	batteryDaemonCmd.Flags().BoolP("daemonize", "d", false, "runs a background daemon that watches for upower dbus events")
@@ -118,12 +156,19 @@ func main() {
 	must(gardenerMaintain.RegisterFlagCompletionFunc("context", contextCompletion))
 	must(gardenerMaintain.RegisterFlagCompletionFunc("namespace", namespaceCompletion))
 
+	gardenerNoGrace.Flags().String("context", "", "the kubeconfig context")
+	gardenerNoGrace.Flags().StringP("namespace", "n", "", "the namespace of the resource")
+	must(gardenerNoGrace.RegisterFlagCompletionFunc("context", contextCompletion))
+	must(gardenerNoGrace.RegisterFlagCompletionFunc("namespace", namespaceCompletion))
+
 	rootCmd.AddCommand(
 		decodeSecretCmd,
 		decodeJwtCmd,
 		batteryDaemonCmd,
 		gardenerReconcile,
 		gardenerMaintain,
+		gardenerNoGrace,
+		gardenerVirtualGarden,
 	)
 
 	if err := rootCmd.Execute(); err != nil {
@@ -142,6 +187,28 @@ func secretNameCompletion(c *cobra.Command, _ []string, toComplete string) ([]st
 	args := []string{"get", "secrets", "--no-headers", "-o", "custom-columns=:metadata.name"}
 	if ns, _ := c.Flags().GetString("namespace"); ns != "" {
 		args = append(args, "-n", ns)
+	}
+	if context, _ := c.Flags().GetString("context"); context != "" {
+		args = append(args, "--context", context)
+	}
+
+	cmd := exec.CommandContext(c.Context(), "kubectl", args...)
+	cmd.Env = os.Environ()
+
+	raw, err := cmd.Output()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	return strings.Split(string(raw), "\n"), cobra.ShellCompDirectiveNoFileComp
+}
+
+func shootNameCompletion(c *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	args := []string{"get", "shoots", "--no-headers", "-o", "custom-columns=:metadata.name"}
+	if ns, _ := c.Flags().GetString("namespace"); ns != "" {
+		args = append(args, "-n", ns)
+	} else {
+		args = append(args, "-A")
 	}
 	if context, _ := c.Flags().GetString("context"); context != "" {
 		args = append(args, "--context", context)

@@ -82,7 +82,10 @@ func (d *daemon) Run(ctx context.Context) error {
 
 	d.log.Info("emitting startup notifications if necessary", "percentage", percentage, "charging", isCharging)
 
-	d.evaluateAndEmit(percentage, isCharging)
+	err = d.evaluateAndEmit(percentage, isCharging)
+	if err != nil {
+		return fmt.Errorf("error evaluating and emitting initial status: %w", err)
+	}
 
 	if !d.daemonize {
 		return nil
@@ -150,7 +153,9 @@ func (d *daemon) Run(ctx context.Context) error {
 
 			d.log.Info("evaluating state", "percentage", percentage, "charging", isCharging)
 
-			d.evaluateAndEmit(percentage, isCharging)
+			if err := d.evaluateAndEmit(percentage, isCharging); err != nil {
+				d.log.Error("error evaluating and emitting status", "error", err)
+			}
 
 		case <-c:
 			if debounceTimer != nil {
@@ -168,18 +173,20 @@ func (d *daemon) Run(ctx context.Context) error {
 	}
 }
 
-func (d *daemon) evaluateAndEmit(percentage int, isCharging bool) {
+func (d *daemon) evaluateAndEmit(percentage int, isCharging bool) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
 	if isCharging {
 		if !d.hasEmittedCharging {
-			d.emitNotification(&notification{
+			if err := d.emitNotification(&notification{
 				message: fmt.Sprintf("Battery is charging (%d%%)", percentage),
 				urgency: urgencyLow,
 				icon:    iconCharging,
 				timeout: new(10 * time.Second),
-			})
+			}); err != nil {
+				return err
+			}
 			d.emitSound()
 			defer func() {
 				d.hasEmittedCharging = true
@@ -190,12 +197,14 @@ func (d *daemon) evaluateAndEmit(percentage int, isCharging bool) {
 	} else {
 		if d.hasEmittedCharging && !d.hasEmittedDischarging {
 			if percentage != 100 {
-				d.emitNotification(&notification{
+				if err := d.emitNotification(&notification{
 					message: fmt.Sprintf("Stopped charging (%d%%)", percentage),
 					urgency: urgencyLow,
 					icon:    iconFull,
 					timeout: new(10 * time.Second),
-				})
+				}); err != nil {
+					return err
+				}
 				d.emitSound()
 			}
 			d.hasEmittedDischarging = true
@@ -217,43 +226,51 @@ func (d *daemon) evaluateAndEmit(percentage int, isCharging bool) {
 	if isCharging {
 		if percentage >= fullPercentage {
 			if d.hasEmittedCharging && !d.hasEmittedFullyCharged {
-				d.emitNotification(&notification{
+				if err := d.emitNotification(&notification{
 					message: fmt.Sprintf("Battery is sufficiently charged (%d%%)", percentage),
 					urgency: urgencyNormal,
 					icon:    iconFull,
 					timeout: new(5 * time.Second),
-				})
+				}); err != nil {
+					return err
+				}
 				d.hasEmittedFullyCharged = true
 			}
 		}
 
-		return
+		return nil
 	}
 
 	if percentage <= criticallyLowPercentage {
 		if !d.hasEmittedCriticallyLow {
-			d.emitNotification(&notification{
+			if err := d.emitNotification(&notification{
 				message: fmt.Sprintf("Battery is critically low (%d%%)", percentage),
 				urgency: urgencyCritical,
 				icon:    iconEmpty,
-			})
+			}); err != nil {
+				return err
+			}
 			d.emitSound()
 			d.hasEmittedCriticallyLow = true
 		}
 	} else if percentage <= lowPercentage {
 		if !d.hasEmittedLow {
-			d.emitNotification(&notification{
+			if err := d.emitNotification(&notification{
 				message: fmt.Sprintf("Battery is running low (%d%%)", percentage),
 				urgency: urgencyNormal,
 				icon:    iconLow,
-			})
+			}); err != nil {
+				return err
+			}
 			d.emitSound()
 			d.hasEmittedLow = true
 		}
 	}
+
+	return nil
 }
 
-func (d *daemon) emitNotification(n *notification) {
+func (d *daemon) emitNotification(n *notification) error {
 	const (
 		title = "Battery Status"
 	)
@@ -299,10 +316,12 @@ func (d *daemon) emitNotification(n *notification) {
 		).Store(&notificationID)
 
 	if err != nil {
-		d.log.Error("failed to send notification", "error", err)
+		return fmt.Errorf("failed to send notification: %w", err)
 	}
 
 	_ = notificationID
+
+	return nil
 }
 
 func (d *daemon) emitSound() {
